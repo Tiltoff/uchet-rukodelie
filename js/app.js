@@ -213,10 +213,11 @@ function choiceSheet({ kind, title, selectedName, empty, rows }) {
     <span class="field-label">${title}</span>
     <button type="button" class="picker" data-${kind}-picker data-action="open-${kind}-sheet">${esc(pickerLabel)}</button>
     <div class="sheet" data-${kind}-sheet hidden>
-      <div class="sheet-head"><h2>${title}</h2><button type="button" data-action="close-${kind}-sheet">Закрыть</button></div>
+      <div class="sheet-head"><h2>${title}</h2></div>
       <input data-${kind}-search placeholder="Найти" autocomplete="off">
       <div class="list">${rows || `<p class="empty">${empty}</p>`}</div>
       <button type="button" class="primary" data-action="create-${kind}">Создать новый</button>
+      <button type="button" class="ghost" data-action="close-${kind}-sheet">К заказу</button>
     </div>`;
 }
 
@@ -783,7 +784,7 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "7";
+const APP_VERSION = "8";
 
 function trackKeyboard() {
   const viewport = window.visualViewport;

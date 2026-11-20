@@ -18,10 +18,13 @@ const app = document.querySelector("#app");
 
 const state = {
   view: "orders",
+  period: "month",
   month: currentMonth(),
   book: null,
   orderId: null,
+  orderBack: "orders",
   productId: null,
+  clientId: null,
   flash: null,
   dialog: null,
   loadError: "",
@@ -39,6 +42,14 @@ function clientName(clientId) {
 
 function productName(productId) {
   return state.book.products.find((product) => product.id === productId)?.name || "Товар удалён";
+}
+
+function ordersWord(count) {
+  const ten = count % 10;
+  const hundred = count % 100;
+  if (ten === 1 && hundred !== 11) return "заказ";
+  if (ten >= 2 && ten <= 4 && (hundred < 12 || hundred > 14)) return "заказа";
+  return "заказов";
 }
 
 function orderTitle(order) {
@@ -60,12 +71,35 @@ function flashHtml() {
   return `<p class="banner ${state.flash.kind === "ok" ? "ok" : "err"}">${esc(state.flash.text)}</p>`;
 }
 
+function bookIcon() {
+  return `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 4.8h5.1A2.7 2.7 0 0 1 12.8 7.5V19a2.1 2.1 0 0 0-2.1-2.1H5V4.8Z"></path>
+    <path d="M19 4.8h-5.1A2.7 2.7 0 0 0 11.2 7.5V19a2.1 2.1 0 0 1 2.1-2.1H19V4.8Z"></path>
+  </svg>`;
+}
+
 function nav(current) {
   const item = (view, label) => {
     const here = current === view ? ' aria-current="page"' : "";
     return `<button type="button" data-action="nav" data-view="${view}"${here}>${label}</button>`;
   };
-  return `<nav class="nav">${item("orders", "Заказы")}${item("products", "Товары")}${item("book", "Книга")}</nav>`;
+  const bookHere = current === "book" ? ' aria-current="page"' : "";
+  return `<nav class="nav">${item("orders", "Заказы")}${item("products", "Товары")}${item("clients", "Клиенты")}<button type="button" data-action="nav" data-view="book" aria-label="Книга"${bookHere}>${bookIcon()}</button></nav>`;
+}
+
+function dock(current) {
+  if (state.view === "order") {
+    const label = state.orderBack === "client" ? "К клиенту" : "К заказам";
+    const backView = state.orderBack === "client" ? "client" : "orders";
+    return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="${backView}">${label}</button></div>`;
+  }
+  if (state.view === "product") {
+    return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="products">К товарам</button></div>`;
+  }
+  if (state.view === "client") {
+    return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="clients">К клиентам</button></div>`;
+  }
+  return nav(current);
 }
 
 function dialogHtml() {
@@ -87,13 +121,33 @@ function shell(title, body, current) {
     <header class="top"><h1 class="brand">${esc(title)}</h1></header>
     ${flashHtml()}
     ${body}
-    ${nav(current)}
+    ${dock(current)}
     ${dialogHtml()}
   </div>`;
 }
 
+function periodOrders() {
+  if (state.period === "year") {
+    return sortedOrders().filter((order) => order.date.startsWith(state.month.slice(0, 4)));
+  }
+  return monthOrders();
+}
+
+function orderButton(order) {
+  const sold = order.status === "sold";
+  const result = sold
+    ? `Прибыль ${formatMoney(order.profit)}`
+    : `Если продать ${formatMoney(order.itemTotal - order.materialsCost)}`;
+  return `<button type="button" class="list-btn" data-action="open-order" data-id="${esc(order.id)}">
+    <b>${esc(clientName(order.clientId))}</b>
+    <span class="badge ${sold ? "sold" : "work"}">${sold ? "Продано" : "В работе"}</span>
+    <span class="sum">${esc(formatMoney(order.itemTotal))}</span>
+    <span class="meta">${esc(showDate(order.date))} · ${esc(orderTitle(order))} · ${order.quantity} шт. · ${esc(result)}</span>
+  </button>`;
+}
+
 function renderOrders() {
-  const orders = monthOrders();
+  const orders = periodOrders();
   let income = 0;
   let profit = 0;
   let pending = 0;
@@ -105,27 +159,23 @@ function renderOrders() {
       pending += order.itemTotal;
     }
   }
+  const yearMode = state.period === "year";
+  const step = yearMode ? 12 : 1;
+  const title = yearMode ? state.month.slice(0, 4) : monthTitle(state.month);
   const rows = orders.length
-    ? `<div class="list">${orders
-        .map((order) => {
-          const sold = order.status === "sold";
-          const result = sold ? `Прибыль ${formatMoney(order.profit)}` : `Если продать ${formatMoney(order.itemTotal - order.materialsCost)}`;
-          return `<button type="button" class="list-btn" data-action="open-order" data-id="${esc(order.id)}">
-            <b>${esc(clientName(order.clientId))}</b>
-            <span class="badge ${sold ? "sold" : "work"}">${sold ? "Продано" : "В работе"}</span>
-            <span class="sum">${esc(formatMoney(order.itemTotal))}</span>
-            <span class="meta">${esc(showDate(order.date))} · ${esc(orderTitle(order))} · ${order.quantity} шт. · ${esc(result)}</span>
-          </button>`;
-        })
-        .join("")}</div>`
-    : `<p class="empty">В этом месяце записей ещё нет.</p>`;
+    ? `<div class="list">${orders.map(orderButton).join("")}</div>`
+    : `<p class="empty">${yearMode ? "В этом году записей ещё нет." : "В этом месяце записей ещё нет."}</p>`;
 
   shell(
     "Учёт",
-    `<div class="month-row">
-      <button type="button" class="icon-btn" data-action="month" data-delta="-1" aria-label="Предыдущий месяц">‹</button>
-      <h2>${esc(monthTitle(state.month))}</h2>
-      <button type="button" class="icon-btn" data-action="month" data-delta="1" aria-label="Следующий месяц">›</button>
+    `<div class="period">
+      <button type="button" data-action="period" data-period="month" aria-pressed="${!yearMode}">Месяц</button>
+      <button type="button" data-action="period" data-period="year" aria-pressed="${yearMode}">Год</button>
+    </div>
+    <div class="month-row">
+      <button type="button" class="icon-btn" data-action="month" data-delta="-${step}" aria-label="Назад">‹</button>
+      <h2>${esc(title)}</h2>
+      <button type="button" class="icon-btn" data-action="month" data-delta="${step}" aria-label="Вперёд">›</button>
     </div>
     <section class="ledger">
       <div class="figure"><span>Доход</span><strong>${esc(formatMoney(income))}</strong></div>
@@ -145,20 +195,41 @@ function names(list) {
     .join("");
 }
 
+function productChoices(selectedName) {
+  const products = [...state.book.products].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  const rows = products
+    .map((product) => {
+      const stock = product.trackStock ? `В наличии ${product.stock} шт.` : "Наличие не ведётся";
+      return `<button type="button" class="product-row" data-action="pick-product" data-name="${esc(product.name)}">
+        <b>${esc(product.name)}</b>
+        <span class="sum">${esc(formatMoney(product.price))}</span>
+        <span class="meta">${esc(stock)}</span>
+      </button>`;
+    })
+    .join("");
+  return `<input type="hidden" name="productName" value="${esc(selectedName)}">
+    <span class="field-label">Товар</span>
+    <button type="button" class="picker" data-action="open-product-sheet">${selectedName ? esc(selectedName) : "Выбрать товар"}</button>
+    <div class="sheet" data-product-sheet hidden>
+      <div class="sheet-head"><h2>Товар</h2><button type="button" data-action="close-product-sheet">Закрыть</button></div>
+      <input data-product-search placeholder="Найти или написать новый" autocomplete="off">
+      <div class="list">${rows || `<p class="empty">Пока нет товаров. Напишите название выше.</p>`}</div>
+      <button type="button" class="primary" data-action="use-typed-product">Выбрать это название</button>
+    </div>`;
+}
+
 function renderOrderForm() {
   const order = state.orderId ? state.book.orders.find((item) => item.id === state.orderId) : null;
   const status = order?.status || "work";
   const product = order ? state.book.products.find((item) => item.id === order.productId) : null;
   shell(
     order ? "Заказ" : "Новый заказ",
-    `<button type="button" class="back" data-action="nav" data-view="orders">К заказам</button>
-    <form class="form" data-form="order" data-status="${status}" data-price-touched="${order ? "1" : "0"}">
+    `<form class="form" data-form="order" data-status="${status}" data-price-touched="${order ? "1" : "0"}">
       <label>Дата<input name="date" type="date" value="${esc(order?.date || todayISO())}" required></label>
       <label>Клиент<input name="clientName" list="client-names" value="${esc(order ? clientName(order.clientId) : "")}" autocomplete="off" required></label>
       <datalist id="client-names">${names(state.book.clients)}</datalist>
       <label>Заказ<input name="title" value="${esc(order?.title || "")}" placeholder="Платье на выпускной" autocomplete="off"></label>
-      <label>Товар<input name="productName" list="product-names" value="${esc(product?.name || "")}" autocomplete="off" required></label>
-      <datalist id="product-names">${names(state.book.products)}</datalist>
+      ${productChoices(product?.name || "")}
       <label>Количество в заказе<input name="quantity" inputmode="numeric" value="${order?.quantity ?? 1}" required></label>
       <label>Цена товара<input name="unitPrice" inputmode="decimal" value="${esc(moneyInput(order?.unitPrice ?? product?.price ?? 0))}" required></label>
       <label>Стоимость расходных материалов<input name="materialsCost" inputmode="decimal" value="${esc(moneyInput(order?.materialsCost ?? 0))}"></label>
@@ -222,8 +293,7 @@ function renderProductForm() {
   const tracked = Boolean(product?.trackStock);
   shell(
     product ? "Товар" : "Новый товар",
-    `<button type="button" class="back" data-action="nav" data-view="products">К товарам</button>
-    <form class="form" data-form="product">
+    `<form class="form" data-form="product">
       <label>Название<input name="name" value="${esc(product?.name || "")}" autocomplete="off" required></label>
       <label>Цена товара<input name="price" inputmode="decimal" value="${esc(moneyInput(product?.price ?? 0))}" required></label>
       <label class="check"><input name="trackStock" type="checkbox" ${tracked ? "checked" : ""}> Вести наличие</label>
@@ -232,6 +302,49 @@ function renderProductForm() {
       ${product ? `<button class="danger" type="button" data-action="delete-product" data-id="${esc(product.id)}">Удалить товар</button>` : ""}
     </form>`,
     "products",
+  );
+}
+
+function renderClients() {
+  const clients = [...state.book.clients].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  const rows = clients.length
+    ? `<div class="list">${clients
+        .map((client) => {
+          const orders = state.book.orders.filter((order) => order.clientId === client.id);
+          const profit = orders.reduce((sum, order) => sum + (order.status === "sold" ? order.profit : 0), 0);
+          return `<button type="button" class="list-btn" data-action="open-client" data-id="${esc(client.id)}">
+            <b>${esc(client.name)}</b>
+            <span class="sum">${esc(formatMoney(profit))}</span>
+            <span class="meta">${orders.length} ${ordersWord(orders.length)} · прибыль по проданным</span>
+          </button>`;
+        })
+        .join("")}</div>`
+    : `<p class="empty">Клиенты появятся, когда сохраните заказ с именем.</p>`;
+  shell("Клиенты", rows, "clients");
+}
+
+function renderClient() {
+  const client = state.book.clients.find((item) => item.id === state.clientId);
+  const orders = sortedOrders().filter((order) => order.clientId === state.clientId);
+  let income = 0;
+  let profit = 0;
+  for (const order of orders) {
+    if (order.status === "sold") {
+      income += order.income;
+      profit += order.profit;
+    }
+  }
+  const rows = orders.length
+    ? `<div class="list">${orders.map(orderButton).join("")}</div>`
+    : `<p class="empty">У этого клиента пока нет заказов.</p>`;
+  shell(
+    client?.name || "Клиент",
+    `<section class="ledger">
+      <div class="figure"><span>Доход</span><strong>${esc(formatMoney(income))}</strong></div>
+      <div class="figure"><span>Чистая прибыль</span><strong>${esc(formatMoney(profit))}</strong></div>
+    </section>
+    ${rows}`,
+    "clients",
   );
 }
 
@@ -265,9 +378,20 @@ function render() {
   if (state.view === "order") renderOrderForm();
   else if (state.view === "products") renderProducts();
   else if (state.view === "product") renderProductForm();
+  else if (state.view === "clients") renderClients();
+  else if (state.view === "client") renderClient();
   else if (state.view === "book") renderBook();
   else renderOrders();
   window.scrollTo(0, 0);
+}
+
+function chooseProduct(form, name) {
+  form.productName.value = name;
+  form.querySelector(".picker").textContent = name;
+  const known = state.book.products.find((product) => product.name.toLowerCase() === name.toLowerCase());
+  if (known && form.dataset.priceTouched !== "1") form.unitPrice.value = moneyInput(known.price);
+  form.querySelector("[data-product-sheet]").hidden = true;
+  updatePreview(form);
 }
 
 function showError(error) {
@@ -296,7 +420,7 @@ async function submitOrder(form) {
     status: form.dataset.status,
   });
   state.flash = { kind: "ok", text: "Заказ сохранён" };
-  await refresh("orders");
+  await refresh(state.orderBack === "client" ? "client" : "orders");
 }
 
 async function submitProduct(form) {
@@ -343,23 +467,46 @@ app.addEventListener("click", (event) => {
   const action = target.dataset.action;
   if (action === "nav") {
     state.view = target.dataset.view;
-    state.orderId = null;
-    state.productId = null;
+    if (state.view !== "order") state.orderId = null;
+    if (state.view !== "product") state.productId = null;
+    if (state.view !== "client") state.clientId = null;
     state.flash = null;
+    render();
+  } else if (action === "period") {
+    state.period = target.dataset.period;
     render();
   } else if (action === "month") {
     state.month = shiftMonth(state.month, Number(target.dataset.delta));
     render();
   } else if (action === "new-order") {
+    state.orderBack = "orders";
     state.view = "order";
     state.orderId = null;
     state.flash = null;
     render();
   } else if (action === "open-order") {
+    state.orderBack = state.view === "client" ? "client" : "orders";
     state.view = "order";
     state.orderId = target.dataset.id;
     state.flash = null;
     render();
+  } else if (action === "open-client") {
+    state.view = "client";
+    state.clientId = target.dataset.id;
+    state.flash = null;
+    render();
+  } else if (action === "open-product-sheet") {
+    const sheet = target.closest("form").querySelector("[data-product-sheet]");
+    sheet.hidden = false;
+    sheet.querySelector("[data-product-search]").focus();
+  } else if (action === "close-product-sheet") {
+    target.closest("[data-product-sheet]").hidden = true;
+  } else if (action === "pick-product") {
+    chooseProduct(target.closest("form"), target.dataset.name);
+  } else if (action === "use-typed-product") {
+    const form = target.closest("form");
+    const typed = form.querySelector("[data-product-search]").value.trim();
+    if (typed) chooseProduct(form, typed);
   } else if (action === "new-product") {
     state.view = "product";
     state.productId = null;
@@ -385,7 +532,7 @@ app.addEventListener("click", (event) => {
       run: async () => {
         await deleteOrder(target.dataset.id);
         state.flash = { kind: "ok", text: "Заказ удалён" };
-        await refresh("orders");
+        await refresh(state.orderBack === "client" ? "client" : "orders");
       },
     };
     render();
@@ -418,15 +565,16 @@ app.addEventListener("click", (event) => {
 });
 
 app.addEventListener("input", (event) => {
+  if (event.target.matches("[data-product-search]")) {
+    const query = event.target.value.trim().toLowerCase();
+    for (const button of event.target.closest(".sheet").querySelectorAll("[data-action=pick-product]")) {
+      button.hidden = Boolean(query) && !button.dataset.name.toLowerCase().includes(query);
+    }
+    return;
+  }
   const form = event.target.closest("[data-form=order]");
   if (!form) return;
   if (event.target.name === "unitPrice") form.dataset.priceTouched = "1";
-  if (event.target.name === "productName" && form.dataset.priceTouched !== "1") {
-    const product = state.book.products.find(
-      (item) => item.name.toLowerCase() === event.target.value.trim().toLowerCase(),
-    );
-    if (product) form.unitPrice.value = moneyInput(product.price);
-  }
   updatePreview(form);
 });
 
@@ -466,7 +614,7 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "2";
+const APP_VERSION = "3";
 
 if ("serviceWorker" in navigator) {
   let refreshing = false;

@@ -19,6 +19,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -355,22 +359,118 @@ textarea {
   font-size: 1.4rem;
 }
 
-.nav {
+.nav,
+.dock {
   position: fixed;
   left: 50%;
   bottom: 0;
   width: min(100%, 34rem);
   transform: translateX(-50%);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
   background: #fffdf9;
   border-top: 1px solid var(--line);
+}
+
+.nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+.dock {
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+.dock .primary {
+  margin: 0;
 }
 
 .nav button {
   min-height: 3.4rem;
   color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.nav-icon {
+  width: 1.55rem;
+  height: 1.55rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.period {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.period button {
+  min-height: 2.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.period button[aria-pressed="true"] {
+  border-color: var(--thread);
+  background: var(--thread);
+  color: #fffaf6;
+  font-weight: 700;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.picker {
+  width: 100%;
+  min-height: 3.2rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--sheet);
+  text-align: left;
+}
+
+.sheet {
+  position: fixed;
+  z-index: 6;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  background: var(--paper);
+}
+
+.sheet[hidden] {
+  display: none;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sheet-head h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.sheet-head button {
+  border: 0;
+  background: transparent;
+  color: var(--thread);
+  font-weight: 700;
+}
+
+.sheet .list {
+  overflow: auto;
 }
 
 .nav button[aria-current="page"] {

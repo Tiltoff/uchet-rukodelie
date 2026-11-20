@@ -1,5 +1,5 @@
 import { parseBookFile, serializeBook } from "./bookfile.js";
-import { deleteOrder, deleteProduct, loadBook, replaceBook, saveOrder, saveProduct } from "./db.js";
+import { deleteOrder, deleteProduct, loadBook, replaceBook, saveClient, saveOrder, saveProduct } from "./db.js";
 import {
   computeTotals,
   currentMonth,
@@ -23,7 +23,12 @@ const state = {
   book: null,
   orderId: null,
   orderBack: "orders",
+  orderDraft: null,
+  restoreSheet: null,
+  restoreDraft: false,
   productId: null,
+  productOrigin: "products",
+  prefillName: "",
   clientId: null,
   flash: null,
   dialog: null,
@@ -91,10 +96,19 @@ function dock(current) {
   if (state.view === "order") {
     const label = state.orderBack === "client" ? "К клиенту" : "К заказам";
     const backView = state.orderBack === "client" ? "client" : "orders";
-    return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="${backView}">${label}</button></div>`;
+    return `<div class="dock dock-stack">
+      <button type="submit" form="order-form" class="primary">Сохранить</button>
+      <button type="button" class="ghost" data-action="nav" data-view="${backView}">${label}</button>
+    </div>`;
+  }
+  if (state.view === "product" && state.productOrigin === "order") {
+    return `<div class="dock"><button type="button" class="ghost" data-action="back-to-sheet" data-sheet="product">К выбору товара</button></div>`;
   }
   if (state.view === "product") {
     return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="products">К товарам</button></div>`;
+  }
+  if (state.view === "new-client") {
+    return `<div class="dock"><button type="button" class="ghost" data-action="back-to-sheet" data-sheet="client">К выбору клиента</button></div>`;
   }
   if (state.view === "client") {
     return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="clients">К клиентам</button></div>`;
@@ -117,7 +131,8 @@ function dialogHtml() {
 }
 
 function shell(title, body, current) {
-  app.innerHTML = `<div class="shell">
+  const tall = state.view === "order" ? " shell-tall" : "";
+  app.innerHTML = `<div class="shell${tall}">
     <header class="top"><h1 class="brand">${esc(title)}</h1></header>
     ${flashHtml()}
     ${body}
@@ -188,11 +203,31 @@ function renderOrders() {
   );
 }
 
-function names(list) {
-  return [...list]
-    .sort((a, b) => a.name.localeCompare(b.name, "ru"))
-    .map((item) => `<option value="${esc(item.name)}"></option>`)
+function choiceSheet({ kind, title, selectedName, empty, rows }) {
+  const pickerLabel = selectedName || (kind === "client" ? "Выбрать клиента" : "Выбрать товар");
+  return `<input type="hidden" name="${kind}Name" value="${esc(selectedName)}">
+    <span class="field-label">${title}</span>
+    <button type="button" class="picker" data-${kind}-picker data-action="open-${kind}-sheet">${esc(pickerLabel)}</button>
+    <div class="sheet" data-${kind}-sheet hidden>
+      <div class="sheet-head"><h2>${title}</h2><button type="button" data-action="close-${kind}-sheet">Закрыть</button></div>
+      <input data-${kind}-search placeholder="Найти" autocomplete="off">
+      <div class="list">${rows || `<p class="empty">${empty}</p>`}</div>
+      <button type="button" class="primary" data-action="create-${kind}">Создать новый</button>
+    </div>`;
+}
+
+function clientChoices(selectedName) {
+  const clients = [...state.book.clients].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  const rows = clients
+    .map((client) => `<button type="button" class="list-btn" data-action="pick-client" data-name="${esc(client.name)}"><b>${esc(client.name)}</b></button>`)
     .join("");
+  return choiceSheet({
+    kind: "client",
+    title: "Клиент",
+    selectedName,
+    empty: "Пока нет клиентов.",
+    rows,
+  });
 }
 
 function productChoices(selectedName) {
@@ -207,15 +242,13 @@ function productChoices(selectedName) {
       </button>`;
     })
     .join("");
-  return `<input type="hidden" name="productName" value="${esc(selectedName)}">
-    <span class="field-label">Товар</span>
-    <button type="button" class="picker" data-action="open-product-sheet">${selectedName ? esc(selectedName) : "Выбрать товар"}</button>
-    <div class="sheet" data-product-sheet hidden>
-      <div class="sheet-head"><h2>Товар</h2><button type="button" data-action="close-product-sheet">Закрыть</button></div>
-      <input data-product-search placeholder="Найти или написать новый" autocomplete="off">
-      <div class="list">${rows || `<p class="empty">Пока нет товаров. Напишите название выше.</p>`}</div>
-      <button type="button" class="primary" data-action="use-typed-product">Выбрать это название</button>
-    </div>`;
+  return choiceSheet({
+    kind: "product",
+    title: "Товар",
+    selectedName,
+    empty: "Пока нет товаров.",
+    rows,
+  });
 }
 
 function renderOrderForm() {
@@ -224,10 +257,9 @@ function renderOrderForm() {
   const product = order ? state.book.products.find((item) => item.id === order.productId) : null;
   shell(
     order ? "Заказ" : "Новый заказ",
-    `<form class="form" data-form="order" data-status="${status}" data-price-touched="${order ? "1" : "0"}">
+    `<form class="form" id="order-form" data-form="order" data-status="${status}" data-price-touched="${order ? "1" : "0"}">
       <label>Дата<input name="date" type="date" value="${esc(order?.date || todayISO())}" required></label>
-      <label>Клиент<input name="clientName" list="client-names" value="${esc(order ? clientName(order.clientId) : "")}" autocomplete="off" required></label>
-      <datalist id="client-names">${names(state.book.clients)}</datalist>
+      ${clientChoices(order ? clientName(order.clientId) : "")}
       <label>Заказ<input name="title" value="${esc(order?.title || "")}" placeholder="Платье на выпускной" autocomplete="off"></label>
       ${productChoices(product?.name || "")}
       <label>Количество в заказе<input name="quantity" inputmode="numeric" value="${order?.quantity ?? 1}" required></label>
@@ -239,7 +271,6 @@ function renderOrderForm() {
       </div>
       <p class="preview" data-preview></p>
       <label>Заметка<textarea name="note">${esc(order?.note || "")}</textarea></label>
-      <button class="primary" type="submit">Сохранить</button>
       ${order ? `<button class="danger" type="button" data-action="delete-order" data-id="${esc(order.id)}">Удалить заказ</button>` : ""}
     </form>`,
     "orders",
@@ -294,7 +325,7 @@ function renderProductForm() {
   shell(
     product ? "Товар" : "Новый товар",
     `<form class="form" data-form="product">
-      <label>Название<input name="name" value="${esc(product?.name || "")}" autocomplete="off" required></label>
+      <label>Название<input name="name" value="${esc(product?.name || state.prefillName)}" autocomplete="off" required></label>
       <label>Цена товара<input name="price" inputmode="decimal" value="${esc(moneyInput(product?.price ?? 0))}" required></label>
       <label class="check"><input name="trackStock" type="checkbox" ${tracked ? "checked" : ""}> Вести наличие</label>
       <label data-stock ${tracked ? "" : "hidden"}>Сколько есть<input name="stock" inputmode="numeric" value="${product?.stock ?? 0}"></label>
@@ -302,6 +333,17 @@ function renderProductForm() {
       ${product ? `<button class="danger" type="button" data-action="delete-product" data-id="${esc(product.id)}">Удалить товар</button>` : ""}
     </form>`,
     "products",
+  );
+}
+
+function renderNewClient() {
+  shell(
+    "Новый клиент",
+    `<form class="form" data-form="client">
+      <label>Клиент<input name="name" value="${esc(state.prefillName)}" autocomplete="off" required></label>
+      <button class="primary" type="submit">Сохранить</button>
+    </form>`,
+    "clients",
   );
 }
 
@@ -380,14 +422,73 @@ function render() {
   else if (state.view === "product") renderProductForm();
   else if (state.view === "clients") renderClients();
   else if (state.view === "client") renderClient();
+  else if (state.view === "new-client") renderNewClient();
   else if (state.view === "book") renderBook();
   else renderOrders();
+  if (state.view === "order" && (state.restoreSheet || state.restoreDraft)) {
+    const sheet = state.restoreSheet;
+    state.restoreSheet = null;
+    state.restoreDraft = false;
+    restoreOrderDraft(sheet);
+  }
   window.scrollTo(0, 0);
+}
+
+function readOrderForm(form) {
+  return {
+    date: form.date.value,
+    clientName: form.clientName.value,
+    title: form.title.value,
+    productName: form.productName.value,
+    quantity: form.quantity.value,
+    unitPrice: form.unitPrice.value,
+    materialsCost: form.materialsCost.value,
+    note: form.note.value,
+    status: form.dataset.status,
+    priceTouched: form.dataset.priceTouched,
+  };
+}
+
+function restoreOrderDraft(sheet) {
+  const draft = state.orderDraft;
+  const form = app.querySelector("[data-form=order]");
+  if (!draft || !form) return;
+  form.date.value = draft.date;
+  form.clientName.value = draft.clientName;
+  form.querySelector("[data-client-picker]").textContent = draft.clientName || "Выбрать клиента";
+  form.title.value = draft.title;
+  form.productName.value = draft.productName;
+  form.querySelector("[data-product-picker]").textContent = draft.productName || "Выбрать товар";
+  form.quantity.value = draft.quantity;
+  form.unitPrice.value = draft.unitPrice;
+  form.materialsCost.value = draft.materialsCost;
+  form.note.value = draft.note;
+  form.dataset.status = draft.status;
+  form.dataset.priceTouched = draft.priceTouched;
+  for (const button of form.querySelectorAll("[data-action=status]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.status === draft.status));
+  }
+  if (sheet) form.querySelector(`[data-${sheet}-sheet]`).hidden = false;
+  updatePreview(form);
+}
+
+function leaveOrderFor(form, nextView) {
+  state.orderDraft = readOrderForm(form);
+  state.prefillName = form.querySelector(`[data-${nextView === "product" ? "product" : "client"}-search]`).value.trim();
+  state.view = nextView;
+  state.flash = null;
+  render();
+}
+
+function chooseClient(form, name) {
+  form.clientName.value = name;
+  form.querySelector("[data-client-picker]").textContent = name;
+  form.querySelector("[data-client-sheet]").hidden = true;
 }
 
 function chooseProduct(form, name) {
   form.productName.value = name;
-  form.querySelector(".picker").textContent = name;
+  form.querySelector("[data-product-picker]").textContent = name;
   const known = state.book.products.find((product) => product.name.toLowerCase() === name.toLowerCase());
   if (known && form.dataset.priceTouched !== "1") form.unitPrice.value = moneyInput(known.price);
   form.querySelector("[data-product-sheet]").hidden = true;
@@ -407,6 +508,8 @@ async function refresh(view) {
 }
 
 async function submitOrder(form) {
+  state.orderDraft = readOrderForm(form);
+  state.restoreDraft = true;
   await saveOrder({
     id: state.orderId,
     date: form.date.value,
@@ -419,14 +522,29 @@ async function submitOrder(form) {
     note: form.note.value,
     status: form.dataset.status,
   });
+  state.orderDraft = null;
+  state.restoreDraft = false;
   state.flash = { kind: "ok", text: "Заказ сохранён" };
   await refresh(state.orderBack === "client" ? "client" : "orders");
+}
+
+async function submitClient(form) {
+  state.prefillName = form.name.value;
+  await saveClient({ name: form.name.value });
+  state.book = await loadBook();
+  state.prefillName = "";
+  state.flash = { kind: "ok", text: "Клиент сохранён" };
+  state.view = "order";
+  state.restoreSheet = "client";
+  state.dialog = null;
+  render();
 }
 
 async function submitProduct(form) {
   const price = roundMoney(form.price.value);
   const trackStock = form.trackStock.checked;
   const stock = trackStock ? wholeStock(form.stock.value) : 0;
+  state.prefillName = form.name.value;
   if (price == null) throw new Error("Проверьте цену товара");
   if (trackStock && stock == null) throw new Error("Укажите, сколько штук есть");
   await saveProduct({
@@ -436,7 +554,18 @@ async function submitProduct(form) {
     trackStock,
     stock,
   });
+  state.prefillName = "";
   state.flash = { kind: "ok", text: "Товар сохранён" };
+  if (state.productOrigin === "order") {
+    state.book = await loadBook();
+    state.productId = null;
+    state.productOrigin = "products";
+    state.view = "order";
+    state.restoreSheet = "product";
+    state.dialog = null;
+    render();
+    return;
+  }
   await refresh("products");
 }
 
@@ -467,8 +596,13 @@ app.addEventListener("click", (event) => {
   const action = target.dataset.action;
   if (action === "nav") {
     state.view = target.dataset.view;
-    if (state.view !== "order") state.orderId = null;
+    if (state.view !== "order") {
+      state.orderId = null;
+      state.orderDraft = null;
+    }
     if (state.view !== "product") state.productId = null;
+    state.productOrigin = "products";
+    state.prefillName = "";
     if (state.view !== "client") state.clientId = null;
     state.flash = null;
     render();
@@ -482,12 +616,14 @@ app.addEventListener("click", (event) => {
     state.orderBack = "orders";
     state.view = "order";
     state.orderId = null;
+    state.orderDraft = null;
     state.flash = null;
     render();
   } else if (action === "open-order") {
     state.orderBack = state.view === "client" ? "client" : "orders";
     state.view = "order";
     state.orderId = target.dataset.id;
+    state.orderDraft = null;
     state.flash = null;
     render();
   } else if (action === "open-client") {
@@ -495,26 +631,43 @@ app.addEventListener("click", (event) => {
     state.clientId = target.dataset.id;
     state.flash = null;
     render();
-  } else if (action === "open-product-sheet") {
-    const sheet = target.closest("form").querySelector("[data-product-sheet]");
+  } else if (action === "open-client-sheet" || action === "open-product-sheet") {
+    const kind = action === "open-client-sheet" ? "client" : "product";
+    const sheet = target.closest("form").querySelector(`[data-${kind}-sheet]`);
     sheet.hidden = false;
-    sheet.querySelector("[data-product-search]").focus();
-  } else if (action === "close-product-sheet") {
-    target.closest("[data-product-sheet]").hidden = true;
+    sheet.querySelector(`[data-${kind}-search]`).focus();
+  } else if (action === "close-client-sheet" || action === "close-product-sheet") {
+    target.closest(".sheet").hidden = true;
+  } else if (action === "pick-client") {
+    chooseClient(target.closest("form"), target.dataset.name);
   } else if (action === "pick-product") {
     chooseProduct(target.closest("form"), target.dataset.name);
-  } else if (action === "use-typed-product") {
-    const form = target.closest("form");
-    const typed = form.querySelector("[data-product-search]").value.trim();
-    if (typed) chooseProduct(form, typed);
+  } else if (action === "create-client") {
+    leaveOrderFor(target.closest("form"), "new-client");
+  } else if (action === "create-product") {
+    state.productOrigin = "order";
+    state.productId = null;
+    leaveOrderFor(target.closest("form"), "product");
+  } else if (action === "back-to-sheet") {
+    state.prefillName = "";
+    state.productId = null;
+    state.productOrigin = "products";
+    state.view = "order";
+    state.restoreSheet = target.dataset.sheet;
+    state.flash = null;
+    render();
   } else if (action === "new-product") {
     state.view = "product";
     state.productId = null;
+    state.productOrigin = "products";
+    state.prefillName = "";
     state.flash = null;
     render();
   } else if (action === "open-product") {
     state.view = "product";
     state.productId = target.dataset.id;
+    state.productOrigin = "products";
+    state.prefillName = "";
     state.flash = null;
     render();
   } else if (action === "status") {
@@ -564,10 +717,17 @@ app.addEventListener("click", (event) => {
   }
 });
 
+app.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && event.target.matches("[data-client-search], [data-product-search]")) {
+    event.preventDefault();
+  }
+});
+
 app.addEventListener("input", (event) => {
-  if (event.target.matches("[data-product-search]")) {
+  if (event.target.matches("[data-client-search], [data-product-search]")) {
     const query = event.target.value.trim().toLowerCase();
-    for (const button of event.target.closest(".sheet").querySelectorAll("[data-action=pick-product]")) {
+    const actionName = event.target.matches("[data-client-search]") ? "pick-client" : "pick-product";
+    for (const button of event.target.closest(".sheet").querySelectorAll(`[data-action=${actionName}]`)) {
       button.hidden = Boolean(query) && !button.dataset.name.toLowerCase().includes(query);
     }
     return;
@@ -610,11 +770,11 @@ app.addEventListener("change", (event) => {
 app.addEventListener("submit", (event) => {
   event.preventDefault();
   const form = event.target;
-  const task = form.dataset.form === "order" ? submitOrder(form) : submitProduct(form);
+  const task = form.dataset.form === "order" ? submitOrder(form) : form.dataset.form === "client" ? submitClient(form) : submitProduct(form);
   task.catch(showError);
 });
 
-const APP_VERSION = "3";
+const APP_VERSION = "4";
 
 if ("serviceWorker" in navigator) {
   let refreshing = false;

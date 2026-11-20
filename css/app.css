@@ -56,6 +56,10 @@ button {
   padding: 1.1rem 1rem calc(5.6rem + env(safe-area-inset-bottom));
 }
 
+.shell-tall {
+  padding-bottom: calc(9.8rem + env(safe-area-inset-bottom));
+}
+
 .top {
   display: flex;
   align-items: baseline;
@@ -380,8 +384,23 @@ textarea {
   padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
 }
 
+.dock-stack {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .dock .primary {
   margin: 0;
+}
+
+.ghost {
+  width: 100%;
+  min-height: 3.2rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .nav button {
@@ -470,6 +489,8 @@ textarea {
 }
 
 .sheet .list {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -480,11 +501,16 @@ textarea {
 
 .dialog-back {
   position: fixed;
+  z-index: 7;
   inset: 0;
   display: grid;
   place-items: end center;
   padding: 1rem;
   background: rgb(44 36 31 / 35%);
+}
+
+.shell-tall .dialog {
+  margin-bottom: calc(8.8rem + env(safe-area-inset-bottom));
 }
 
 .dialog {

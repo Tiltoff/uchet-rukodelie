@@ -212,6 +212,23 @@ export function deleteOrder(id) {
   });
 }
 
+export function saveClient(input) {
+  return editBook((stores, book) => {
+    const name = String(input.name ?? "").trim();
+    if (!name) throw new Error("Укажите клиента");
+    const duplicate = book.clients.find(
+      (client) => client.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (duplicate) throw new Error("Такой клиент уже есть");
+    stores.clients.put({
+      id: uid(),
+      name,
+      note: "",
+      updatedAt: new Date().toISOString(),
+    });
+  });
+}
+
 export function saveProduct(input) {
   return editBook((stores, book) => {
     const name = String(input.name ?? "").trim();

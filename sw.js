@@ -1,4 +1,4 @@
-const CACHE = "uchet-v1";
+const CACHE = "uchet-v2";
 const FILES = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const FILES = [
   "./manifest.webmanifest",
   "./icons/icon-180.png",
   "./icons/icon-512.png",
+  "./version.txt",
 ];
 
 self.addEventListener("install", (event) => {
@@ -33,7 +34,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-store" })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();

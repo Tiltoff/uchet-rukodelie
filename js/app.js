@@ -466,9 +466,32 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
+const APP_VERSION = "2";
+
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((registration) => {
+    registration.update().catch(() => {});
+  }).catch(() => {});
 }
+
+fetch("./version.txt", { cache: "no-store" })
+  .then((response) => response.text())
+  .then((raw) => {
+    const remote = raw.trim();
+    if (!remote || remote === APP_VERSION) return;
+    if (sessionStorage.getItem("uchet-reload") === remote) return;
+    sessionStorage.setItem("uchet-reload", remote);
+    const next = new URL("./", window.location.href);
+    next.searchParams.set("v", remote);
+    window.location.replace(next.href);
+  })
+  .catch(() => {});
 
 loadBook()
   .then((book) => {

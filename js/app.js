@@ -92,23 +92,27 @@ function nav(current) {
   return `<nav class="nav">${item("orders", "Заказы")}${item("products", "Товары")}${item("clients", "Клиенты")}<button type="button" data-action="nav" data-view="book" aria-label="Книга"${bookHere}>${bookIcon()}</button></nav>`;
 }
 
+function dockStack(formId, back) {
+  return `<div class="dock dock-stack">
+    <button type="submit" form="${formId}" class="primary">Сохранить</button>
+    ${back}
+  </div>`;
+}
+
 function dock(current) {
   if (state.view === "order") {
     const label = state.orderBack === "client" ? "К клиенту" : "К заказам";
     const backView = state.orderBack === "client" ? "client" : "orders";
-    return `<div class="dock dock-stack">
-      <button type="submit" form="order-form" class="primary">Сохранить</button>
-      <button type="button" class="ghost" data-action="nav" data-view="${backView}">${label}</button>
-    </div>`;
+    return dockStack("order-form", `<button type="button" class="ghost" data-action="nav" data-view="${backView}">${label}</button>`);
   }
   if (state.view === "product" && state.productOrigin === "order") {
-    return `<div class="dock"><button type="button" class="ghost" data-action="back-to-sheet" data-sheet="product">К выбору товара</button></div>`;
+    return dockStack("product-form", `<button type="button" class="ghost" data-action="back-to-sheet" data-sheet="product">К выбору товара</button>`);
   }
   if (state.view === "product") {
-    return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="products">К товарам</button></div>`;
+    return dockStack("product-form", `<button type="button" class="ghost" data-action="nav" data-view="products">К товарам</button>`);
   }
   if (state.view === "new-client") {
-    return `<div class="dock"><button type="button" class="ghost" data-action="back-to-sheet" data-sheet="client">К выбору клиента</button></div>`;
+    return dockStack("client-form", `<button type="button" class="ghost" data-action="back-to-sheet" data-sheet="client">К выбору клиента</button>`);
   }
   if (state.view === "client") {
     return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="clients">К клиентам</button></div>`;
@@ -131,7 +135,7 @@ function dialogHtml() {
 }
 
 function shell(title, body, current) {
-  const tall = state.view === "order" ? " shell-tall" : "";
+  const tall = state.view === "order" || state.view === "product" || state.view === "new-client" ? " shell-tall" : "";
   app.innerHTML = `<div class="shell${tall}">
     <header class="top"><h1 class="brand">${esc(title)}</h1></header>
     ${flashHtml()}
@@ -324,12 +328,11 @@ function renderProductForm() {
   const tracked = Boolean(product?.trackStock);
   shell(
     product ? "Товар" : "Новый товар",
-    `<form class="form" data-form="product">
+    `<form class="form" id="product-form" data-form="product">
       <label>Название<input name="name" value="${esc(product?.name || state.prefillName)}" autocomplete="off" required></label>
       <label>Цена товара<input name="price" inputmode="decimal" value="${esc(moneyInput(product?.price ?? 0))}" required></label>
       <label class="check"><input name="trackStock" type="checkbox" ${tracked ? "checked" : ""}> Вести наличие</label>
       <label data-stock ${tracked ? "" : "hidden"}>Сколько есть<input name="stock" inputmode="numeric" value="${product?.stock ?? 0}"></label>
-      <button class="primary" type="submit">Сохранить</button>
       ${product ? `<button class="danger" type="button" data-action="delete-product" data-id="${esc(product.id)}">Удалить товар</button>` : ""}
     </form>`,
     "products",
@@ -339,9 +342,8 @@ function renderProductForm() {
 function renderNewClient() {
   shell(
     "Новый клиент",
-    `<form class="form" data-form="client">
+    `<form class="form" id="client-form" data-form="client">
       <label>Клиент<input name="name" value="${esc(state.prefillName)}" autocomplete="off" required></label>
-      <button class="primary" type="submit">Сохранить</button>
     </form>`,
     "clients",
   );
@@ -780,7 +782,7 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "5";
+const APP_VERSION = "6";
 
 if ("serviceWorker" in navigator) {
   let refreshing = false;

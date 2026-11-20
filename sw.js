@@ -1,4 +1,4 @@
-const CACHE = "uchet-v9";
+const CACHE = "uchet-v10";
 const FILES = [
   "./",
   "./index.html",

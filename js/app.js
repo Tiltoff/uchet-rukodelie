@@ -121,6 +121,17 @@ function dock(current) {
   if (state.view === "client") {
     return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="clients">К клиентам</button></div>`;
   }
+  const create = {
+    orders: ["new-order", "Новый заказ"],
+    products: ["new-product", "Новый товар"],
+    clients: ["new-client", "Новый клиент"],
+  }[state.view];
+  if (create) {
+    return `<div class="dock dock-stack">
+      <button type="button" class="primary" data-action="${create[0]}">${create[1]}</button>
+      ${nav(current)}
+    </div>`;
+  }
   return nav(current);
 }
 
@@ -139,7 +150,7 @@ function dialogHtml() {
 }
 
 function shell(title, body, current) {
-  const tall = state.view === "order" || state.view === "product" || state.view === "new-client" ? " shell-tall" : "";
+  const tall = ["orders", "order", "products", "product", "clients", "new-client"].includes(state.view) ? " shell-tall" : "";
   app.innerHTML = `<div class="shell${tall}">
     <header class="top"><h1 class="brand">${esc(title)}</h1></header>
     ${flashHtml()}
@@ -205,8 +216,7 @@ function renderOrders() {
       <div class="figure"><span>Чистая прибыль</span><strong>${esc(formatMoney(profit))}</strong></div>
     </section>
     ${pending ? `<p class="aside">Ещё не продано на ${esc(formatMoney(pending))}</p>` : ""}
-    ${rows}
-    <button type="button" class="primary" data-action="new-order">Новый заказ</button>`,
+    ${rows}`,
     "orders",
   );
 }
@@ -323,7 +333,7 @@ function renderProducts() {
     : `<p class="empty">Товаров пока нет. Их можно завести здесь или прямо из заказа.</p>`;
   shell(
     "Товары",
-    `${rows}<button type="button" class="primary" data-action="new-product">Новый товар</button>`,
+    rows,
     "products",
   );
 }
@@ -371,7 +381,7 @@ function renderClients() {
     : `<p class="empty">Клиентов пока нет. Их можно завести здесь или прямо из заказа.</p>`;
   shell(
     "Клиенты",
-    `${rows}<button type="button" class="primary" data-action="new-client">Новый клиент</button>`,
+    rows,
     "clients",
   );
 }
@@ -806,7 +816,7 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "9";
+const APP_VERSION = "10";
 
 function trackKeyboard() {
   const viewport = window.visualViewport;

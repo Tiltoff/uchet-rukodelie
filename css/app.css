@@ -459,10 +459,11 @@ textarea {
   position: fixed;
   z-index: 6;
   inset: 0;
+  bottom: var(--keyboard, 0px);
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  padding: 1rem 1rem calc(1rem + max(0px, env(safe-area-inset-bottom) - var(--keyboard, 0px)));
   background: var(--paper);
 }
 

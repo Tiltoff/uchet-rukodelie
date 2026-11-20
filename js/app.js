@@ -643,9 +643,10 @@ app.addEventListener("click", (event) => {
     const kind = action === "open-client-sheet" ? "client" : "product";
     const sheet = target.closest("form").querySelector(`[data-${kind}-sheet]`);
     sheet.hidden = false;
-    sheet.querySelector(`[data-${kind}-search]`).focus();
   } else if (action === "close-client-sheet" || action === "close-product-sheet") {
-    target.closest(".sheet").hidden = true;
+    const sheet = target.closest(".sheet");
+    sheet.querySelector("input")?.blur();
+    sheet.hidden = true;
   } else if (action === "pick-client") {
     chooseClient(target.closest("form"), target.dataset.name);
   } else if (action === "pick-product") {
@@ -782,7 +783,22 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "6";
+const APP_VERSION = "7";
+
+function trackKeyboard() {
+  const viewport = window.visualViewport;
+  if (!viewport) return;
+  const update = () => {
+    const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+    const keyboard = covered > 80 ? Math.round(covered) : 0;
+    document.documentElement.style.setProperty("--keyboard", `${keyboard}px`);
+  };
+  viewport.addEventListener("resize", update);
+  viewport.addEventListener("scroll", update);
+  update();
+}
+
+trackKeyboard();
 
 if ("serviceWorker" in navigator) {
   let refreshing = false;

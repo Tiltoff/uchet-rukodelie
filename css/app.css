@@ -414,9 +414,14 @@ textarea {
   min-height: 3rem;
   border-radius: 0.8rem;
   border: 1px solid var(--line);
-  background: transparent;
+  background: var(--sheet);
+  color: var(--ink);
 }
 
 .dialog-actions .primary {
   margin: 0;
+  width: auto;
+  border: 0;
+  background: var(--thread);
+  color: #fffaf6;
 }

@@ -29,6 +29,7 @@ const state = {
   productId: null,
   productOrigin: "products",
   prefillName: "",
+  clientOrigin: "clients",
   clientId: null,
   flash: null,
   dialog: null,
@@ -111,8 +112,11 @@ function dock(current) {
   if (state.view === "product") {
     return dockStack("product-form", `<button type="button" class="ghost" data-action="nav" data-view="products">К товарам</button>`);
   }
-  if (state.view === "new-client") {
+  if (state.view === "new-client" && state.clientOrigin === "order") {
     return dockStack("client-form", `<button type="button" class="ghost" data-action="back-to-sheet" data-sheet="client">К выбору клиента</button>`);
+  }
+  if (state.view === "new-client") {
+    return dockStack("client-form", `<button type="button" class="ghost" data-action="nav" data-view="clients">К клиентам</button>`);
   }
   if (state.view === "client") {
     return `<div class="dock"><button type="button" class="primary" data-action="nav" data-view="clients">К клиентам</button></div>`;
@@ -364,8 +368,12 @@ function renderClients() {
           </button>`;
         })
         .join("")}</div>`
-    : `<p class="empty">Клиенты появятся, когда сохраните заказ с именем.</p>`;
-  shell("Клиенты", rows, "clients");
+    : `<p class="empty">Клиентов пока нет. Их можно завести здесь или прямо из заказа.</p>`;
+  shell(
+    "Клиенты",
+    `${rows}<button type="button" class="primary" data-action="new-client">Новый клиент</button>`,
+    "clients",
+  );
 }
 
 function renderClient() {
@@ -534,13 +542,18 @@ async function submitOrder(form) {
 async function submitClient(form) {
   state.prefillName = form.name.value;
   await saveClient({ name: form.name.value });
-  state.book = await loadBook();
   state.prefillName = "";
   state.flash = { kind: "ok", text: "Клиент сохранён" };
-  state.view = "order";
-  state.restoreSheet = "client";
-  state.dialog = null;
-  render();
+  if (state.clientOrigin === "order") {
+    state.book = await loadBook();
+    state.view = "order";
+    state.restoreSheet = "client";
+    state.clientOrigin = "clients";
+    state.dialog = null;
+    render();
+    return;
+  }
+  await refresh("clients");
 }
 
 async function submitProduct(form) {
@@ -611,6 +624,7 @@ app.addEventListener("click", (event) => {
     }
     if (state.view !== "product") state.productId = null;
     state.productOrigin = "products";
+    state.clientOrigin = "clients";
     state.prefillName = "";
     if (state.view !== "client") state.clientId = null;
     state.flash = null;
@@ -653,7 +667,14 @@ app.addEventListener("click", (event) => {
   } else if (action === "pick-product") {
     chooseProduct(target.closest("form"), target.dataset.name);
   } else if (action === "create-client") {
+    state.clientOrigin = "order";
     leaveOrderFor(target.closest("form"), "new-client");
+  } else if (action === "new-client") {
+    state.view = "new-client";
+    state.clientOrigin = "clients";
+    state.prefillName = "";
+    state.flash = null;
+    render();
   } else if (action === "create-product") {
     state.productOrigin = "order";
     state.productId = null;
@@ -662,6 +683,7 @@ app.addEventListener("click", (event) => {
     state.prefillName = "";
     state.productId = null;
     state.productOrigin = "products";
+    state.clientOrigin = "clients";
     state.view = "order";
     state.restoreSheet = target.dataset.sheet;
     state.flash = null;
@@ -784,7 +806,7 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "8";
+const APP_VERSION = "9";
 
 function trackKeyboard() {
   const viewport = window.visualViewport;

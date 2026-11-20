@@ -492,6 +492,8 @@ textarea {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  align-content: start;
+  align-items: start;
 }
 
 .nav button[aria-current="page"] {

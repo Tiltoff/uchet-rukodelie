@@ -590,6 +590,12 @@ async function exportFile() {
   render();
 }
 
+app.addEventListener("pointerdown", (event) => {
+  const sheet = event.target.closest(".sheet");
+  if (!sheet || event.target.closest("button, input, textarea")) return;
+  sheet.querySelector("[data-client-search], [data-product-search]")?.blur();
+});
+
 app.addEventListener("click", (event) => {
   const target = event.target.closest("[data-action]");
   if (!target) return;
@@ -774,7 +780,7 @@ app.addEventListener("submit", (event) => {
   task.catch(showError);
 });
 
-const APP_VERSION = "4";
+const APP_VERSION = "5";
 
 if ("serviceWorker" in navigator) {
   let refreshing = false;
